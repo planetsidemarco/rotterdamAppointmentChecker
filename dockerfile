@@ -1,18 +1,37 @@
-# Deriving the latest base image
-FROM python:3.10
-# FROM --platform=linux/amd64 python:3.10
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
 
-# Any working directory can be chosen as per choice like '/' or '/home' etc
-WORKDIR /
+# Set the working directory in the container
+WORKDIR /usr/src/app
 
-# COPY the remote file at working directory in container
-ADD main.py ./
-# Now the structure looks like this '/usr/app/src/test.py'
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    firefox-esr \
+    wget \
+    libglib2.0-0 \
+    libnss3 \
+    libgconf-2-4 \
+    libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip
+# Download and install Geckodriver for Linux ARM64
+RUN wget https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-linux-aarch64.tar.gz \
+    && tar -xzf geckodriver-v0.33.0-linux-aarch64.tar.gz \
+    && mv geckodriver /usr/local/bin/ \
+    && rm geckodriver-v0.33.0-linux-aarch64.tar.gz
 
-RUN python -m pip install selenium webdriver_manager deep-translator
-#CMD instruction should be used to run the software
-#contained by your image, along with any arguments.
+# Ensure Firefox and Geckodriver are in the PATH
+ENV PATH="/usr/local/bin:/usr/bin:${PATH}"
 
-CMD [ "python", "./main.py"]
+# Install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
+
+# Ensure geckodriver is executable
+RUN chmod +x /usr/local/bin/geckodriver
+
+# Run the script
+CMD ["python", "./main.py"]

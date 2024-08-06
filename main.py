@@ -1,81 +1,141 @@
+"""
+06/08/24
+Marco Tyler-Rodrigue
+Selenium webscraper for checking rotterdam municipality appointment times
+"""
+
+import time
 from selenium import webdriver
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import Select
-from webdriver_manager.chrome import ChromeDriverManager
 from deep_translator import GoogleTranslator
-import time
 
-def find_and_interact(element_xpath: str, action: str = "click", query: str = "") -> webdriver:
-    global driver
+
+XPATHS = {
+    "appointment": "//a[@class='styles_button__BEjUn' and @title='Afspraak maken']",
+    "subject": "//button[@class='btn btn-link btn-block text-left' and @type='submit'"
+    "and @name='matches:form:keuzes:0:button:form:give-focus' and @id='id5']",
+    "rental": "//select[@class='form-control' and @aria-required='true' and "
+    "@name='matches:form:keuzes:0:button:form:in-focus:hvv:form:huurOfKoop:field' and @id='id10']",
+    "postcode": "//input[@type='text' and @class='form-control' and @maxlength='6' and"
+    "@name='matches:form:keuzes:0:button:form:in-focus:hvv:form:postcodeContainer:postcode'"
+    "and @id='id17']",
+    "postcode_input": "//button[@class='btn btn-secondary' and @type='submit' and"
+    "@name='matches:form:keuzes:0:button:form:in-focus:hvv:form:afspraak' and @id='id12']",
+    "quantity_input": "//button[@class='btn btn-secondary' and @type='submit' and"
+    "@value='button' and @name='verder' and @id='id1a']",
+    "options": "//button[@class='list-group-item list-group-item-action flex-column "
+    "align-items-start' and @name='keuzes:0:give-focus' and @id='id1f']",
+    "options_input": "//button[@class='btn btn-secondary' and @type='submit' and @value='button'"
+    "and @name='keuzes:0:in-focus:button' and @id='id20']",
+    "calendar": "//span[@class='input-group-text' and @title='Kies datum ...']",
+}
+
+
+def find_and_interact(element_xpath: str, action: str = "button", query: str = ""):
+    """Find elements and interact with them on a webpage
+
+    Args:
+        element_xpath (str): expected element name
+        action (str, optional): type of element [button, dropdown, textbox]. Defaults to "button".
+        query (str, optional): query for dropdown and textbox elements. Defaults to "".
+    """
+    print(f"Selecting {element_xpath} element")
+
     element = WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located((By.XPATH, element_xpath))
+        EC.presence_of_element_located((By.XPATH, XPATHS[element_xpath]))
     )
     driver.execute_script("arguments[0].scrollIntoView(true);", element)
-    driver.implicitly_wait(2)
 
-    if action == "select":
-        Select(element).select_by_value(query)
-    elif action == "send_keys":
+    time.sleep(0.5)
+
+    if action == "dropdown":
+        select = Select(element)
+        select.select_by_value(query)
+    elif action == "textbox":
         element.send_keys(query)
     else:
-        # element.click()
         actions = ActionChains(driver)
         actions.move_to_element(element)
         driver.execute_script("arguments[0].click();", element)
 
     WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
     driver.switch_to.window(driver.window_handles[-1])
-    return driver
 
-def extract_date_time_text():
-    global driver
+
+def extract_date_time_text() -> str:
+    """Extract date and time from webpage
+
+    Returns:
+        str: formatted string stating earliest available appointment in english
+    """
     text = driver.find_element(By.TAG_NAME, "body").text
-    start, end = "Centrum", ", kaart"
+    start, end = "Centrum", "Coolsingel"
 
     try:
         start_pos = text.index(start) + len(start)
         end_pos = text.index(end)
         filtered_text = text[start_pos:end_pos].strip()
-        translated = GoogleTranslator(source='auto', target='en').translate(filtered_text)
-        print(translated)
+        translated = GoogleTranslator(source="auto", target="en").translate(
+            filtered_text
+        )
+        return f"Earliest available appointment: {translated}"
     except ValueError:
         return ""
 
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service)
+
+def save_full_page_screenshot(filename: str):
+    """Helper function to save screenshot of current webpage
+
+    Args:
+        filename (str): name of image file
+    """
+    print(f"Saving screenshot to {filename}")
+    driver.save_screenshot(filename)
+
+
+print("STARTING SCRIPT")
+# Set up Firefox options
+firefox_options = Options()
+firefox_options.add_argument("--headless")
+
+# Specify the path to Geckodriver
+GECKODRIVER_PATH = "/usr/local/bin/geckodriver"
+BASE_URL = "https://www.rotterdam.nl"
+
+# Set up Firefox service
+firefox_service = FirefoxService(executable_path=GECKODRIVER_PATH)
+
+# Initialize the Firefox driver with the specified service
+driver = webdriver.Firefox(service=firefox_service, options=firefox_options)
 driver.maximize_window()
-driver.get("https://www.rotterdam.nl/eerste-inschrijving-in-nederland/start-eerste-inschrijving-in-nederland")
+driver.get(
+    f"{BASE_URL}/eerste-inschrijving-in-nederland/start-eerste-inschrijving-in-nederland"
+)
 
-xpaths = {
-    "appointment": "//a[@class='styles_button__BEjUn' and @title='Afspraak maken' and contains(@href, 'afspraak/maken/zoek/eerstevestigingb')]",
-    "subject": "//button[@class='btn btn-link btn-block text-left' and @type='submit' and @name='matches:form:keuzes:0:button:form:give-focus' and @id='id5']",
-    "rental": "//select[@class='form-control' and @aria-required='true' and @name='matches:form:keuzes:0:button:form:in-focus:hvv:form:huurOfKoop:field' and @id='id10']",
-    "postcode": "//input[@type='text' and @class='form-control' and @maxlength='6' and @name='matches:form:keuzes:0:button:form:in-focus:hvv:form:postcodeContainer:postcode' and @id='id17']",
-    "postcode_input": "//button[@class='btn btn-secondary' and @type='submit' and @name='matches:form:keuzes:0:button:form:in-focus:hvv:form:afspraak' and @id='id12']",
-    "quantity_input": "//button[@class='btn btn-secondary' and @type='submit' and @value='button' and @name='verder' and @id='id1a']",
-    "dates": "//button[@class='list-group-item list-group-item-action flex-column align-items-start' and @name='keuzes:0:give-focus' and @id='id1f']",
-    "dates_input": "//button[@class='btn btn-secondary' and @type='submit' and @value='button' and @name='keuzes:0:in-focus:button' and @id='id20']",
-    "calendar": "//span[@class='input-group-text' and @title='Kies datum ...']"
-}
+find_and_interact("appointment")
+find_and_interact("subject")
+find_and_interact("rental", action="dropdown", query="HUUR")
+find_and_interact("postcode", action="textbox", query="3039RL")
+find_and_interact("postcode_input")
+find_and_interact("quantity_input")
 
-find_and_interact(xpaths["appointment"])
-find_and_interact(xpaths["subject"])
-find_and_interact(xpaths["rental"], action="select", query="HUUR")
-find_and_interact(xpaths["postcode"], action="send_keys", query="3039RL")
-find_and_interact(xpaths["postcode_input"])
-find_and_interact(xpaths["quantity_input"])
-find_and_interact(xpaths["dates"])
-
-driver.save_screenshot("options.png")
-extract_date_time_text()
-
-find_and_interact(xpaths["dates_input"])
-find_and_interact(xpaths["calendar"])
-
+find_and_interact("options")
+save_full_page_screenshot("options.png")
 time.sleep(0.5)
-driver.save_screenshot("calendar.png")
+available_date_time = extract_date_time_text()
+
+find_and_interact("options_input")
+
+find_and_interact("calendar")
+time.sleep(0.5)  # Give more time for the calendar to load
+save_full_page_screenshot("calendar.png")
+
+print(f"\n{available_date_time}")
+
 driver.quit()
