@@ -84,6 +84,7 @@ def get_date_time_text() -> str:
         translated = GoogleTranslator(source="auto", target="en").translate(
             filtered_text
         )
+        print("Saving earliest appointment date/time to date_time.txt")
         with open('date_time.txt', 'w', encoding="utf-8") as file:
             # Write the string to the file
             file.write(translated)
