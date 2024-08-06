@@ -52,7 +52,7 @@ def find_and_interact(element_xpath: str, action: str = "button", query: str = "
     )
     driver.execute_script("arguments[0].scrollIntoView(true);", element)
 
-    time.sleep(0.5)
+    time.sleep(1)
 
     if action == "dropdown":
         select = Select(element)
@@ -87,7 +87,7 @@ def get_date_time_text() -> str:
         print("Saving earliest appointment date/time to date_time.txt")
         with open('date_time.txt', 'w', encoding="utf-8") as file:
             # Write the string to the file
-            file.write(translated)
+            file.write(f"{translated}\n")
     except ValueError:
         return ""
 
@@ -128,13 +128,13 @@ find_and_interact("quantity_input")
 
 find_and_interact("options")
 save_full_page_screenshot("options.png")
-time.sleep(0.5)
+time.sleep(1)
 get_date_time_text()
 
 find_and_interact("options_input")
 
 find_and_interact("calendar")
-time.sleep(0.5)  # Give more time for the calendar to load
+time.sleep(1)  # Give more time for the calendar to load
 save_full_page_screenshot("calendar.png")
 
 driver.quit()
