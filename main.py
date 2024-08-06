@@ -68,7 +68,7 @@ def find_and_interact(element_xpath: str, action: str = "button", query: str = "
     driver.switch_to.window(driver.window_handles[-1])
 
 
-def extract_date_time_text() -> str:
+def get_date_time_text() -> str:
     """Extract date and time from webpage
 
     Returns:
@@ -84,7 +84,9 @@ def extract_date_time_text() -> str:
         translated = GoogleTranslator(source="auto", target="en").translate(
             filtered_text
         )
-        return f"Earliest available appointment: {translated}"
+        with open('date_time.txt', 'w', encoding="utf-8") as file:
+            # Write the string to the file
+            file.write(translated)
     except ValueError:
         return ""
 
@@ -98,8 +100,6 @@ def save_full_page_screenshot(filename: str):
     print(f"Saving screenshot to {filename}")
     driver.save_screenshot(filename)
 
-
-print("STARTING SCRIPT")
 # Set up Firefox options
 firefox_options = Options()
 firefox_options.add_argument("--headless")
@@ -128,14 +128,12 @@ find_and_interact("quantity_input")
 find_and_interact("options")
 save_full_page_screenshot("options.png")
 time.sleep(0.5)
-available_date_time = extract_date_time_text()
+get_date_time_text()
 
 find_and_interact("options_input")
 
 find_and_interact("calendar")
 time.sleep(0.5)  # Give more time for the calendar to load
 save_full_page_screenshot("calendar.png")
-
-print(f"\n{available_date_time}")
 
 driver.quit()
