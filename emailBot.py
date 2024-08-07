@@ -41,7 +41,9 @@ receiver_email = f"{os.environ.get('EMAIL_RECEIVER')}@gmail.com"
 subject = "Latest Rotterdam Appointment Times"
 date_time = open('date_time.txt', 'r', encoding="utf-8").read()
 body = f"Next appointment {date_time}"
-
-attachments = ["calendar.png", "options.png"]
+if "not currently available" in date_time:
+    attachments = []
+else:
+    attachments = ["calendar.png", "options.png"]
 
 send_email(sender_email, sender_password, receiver_email, subject, body, attachments)

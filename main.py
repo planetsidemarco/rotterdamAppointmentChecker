@@ -5,6 +5,7 @@ Selenium webscraper for checking rotterdam municipality appointment times
 """
 
 import time
+import sys
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.firefox.options import Options
@@ -47,7 +48,7 @@ def find_and_interact(element_xpath: str, action: str = "button", query: str = "
     """
     print(f"Selecting {element_xpath} element")
 
-    element = WebDriverWait(driver, 20).until(
+    element = WebDriverWait(driver, 50).until(
         EC.presence_of_element_located((By.XPATH, XPATHS[element_xpath]))
     )
     driver.execute_script("arguments[0].scrollIntoView(true);", element)
@@ -68,12 +69,9 @@ def find_and_interact(element_xpath: str, action: str = "button", query: str = "
     driver.switch_to.window(driver.window_handles[-1])
 
 
-def get_date_time_text() -> str:
-    """Extract date and time from webpage
-
-    Returns:
-        str: formatted string stating earliest available appointment in english
-    """
+def get_date_time_text():
+    """Extract date and time from webpage and creates textfile with result"""
+    time.sleep(1)
     text = driver.find_element(By.TAG_NAME, "body").text
     start, end = "Centrum", "Coolsingel"
 
@@ -85,11 +83,35 @@ def get_date_time_text() -> str:
             filtered_text
         )
         print("Saving earliest appointment date/time to date_time.txt")
-        with open('date_time.txt', 'w', encoding="utf-8") as file:
+        with open("date_time.txt", "w", encoding="utf-8") as file:
             # Write the string to the file
             file.write(f"{translated}\n")
-    except ValueError:
-        return ""
+    except ValueError as e:
+        print(e)
+
+
+def no_bookings_text():
+    """Creates text file stating no bookings available"""
+    print("Saving no bookings available to date_time.txt")
+    with open("date_time.txt", "w", encoding="utf-8") as file:
+        # Write the string to the file
+        file.write("not currently available :(\n")
+
+
+def check_for_no_bookings():
+    """Text"""
+    time.sleep(3)
+    no_booking_text = "Het spijt ons."
+    # Update current url source and get body text
+    driver.get("view-source:" + driver.current_url)
+    time.sleep(3)
+    current_body_text = driver.find_element(By.TAG_NAME, "body").text
+    # Check if no booking text exists on page
+    if no_booking_text in current_body_text:
+        print("No bookings available")
+        no_bookings_text()
+        driver.quit()
+        sys.exit()
 
 
 def save_full_page_screenshot(filename: str):
@@ -98,8 +120,10 @@ def save_full_page_screenshot(filename: str):
     Args:
         filename (str): name of image file
     """
+    time.sleep(1)
     print(f"Saving screenshot to {filename}")
     driver.save_screenshot(filename)
+
 
 # Set up Firefox options
 firefox_options = Options()
@@ -126,15 +150,13 @@ find_and_interact("postcode", action="textbox", query="3039RL")
 find_and_interact("postcode_input")
 find_and_interact("quantity_input")
 
+check_for_no_bookings()
+
 find_and_interact("options")
 save_full_page_screenshot("options.png")
-time.sleep(1)
 get_date_time_text()
-
 find_and_interact("options_input")
-
 find_and_interact("calendar")
-time.sleep(1)  # Give more time for the calendar to load
 save_full_page_screenshot("calendar.png")
 
 driver.quit()
