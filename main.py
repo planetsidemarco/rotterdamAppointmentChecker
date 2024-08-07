@@ -5,7 +5,15 @@ Selenium webscraper for checking rotterdam municipality appointment times
 """
 
 import time
-import sys
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.application import MIMEApplication
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+from typing import List
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.firefox.options import Options
@@ -15,7 +23,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import Select
 from deep_translator import GoogleTranslator
-
 
 XPATHS = {
     "appointment": "//a[@class='styles_button__BEjUn' and @title='Afspraak maken']",
@@ -98,20 +105,22 @@ def no_bookings_text():
         file.write("not currently available :(\n")
 
 
-def check_for_no_bookings():
+def check_for_bookings() -> bool:
     """Text"""
-    time.sleep(3)
+    bookings = True
+    time.sleep(5)
     no_booking_text = "Het spijt ons."
     # Update current url source and get body text
     driver.get("view-source:" + driver.current_url)
-    time.sleep(3)
+    time.sleep(5)
     current_body_text = driver.find_element(By.TAG_NAME, "body").text
     # Check if no booking text exists on page
     if no_booking_text in current_body_text:
         print("No bookings available")
         no_bookings_text()
-        driver.quit()
-        sys.exit()
+        bookings = False
+
+    return bookings
 
 
 def save_full_page_screenshot(filename: str):
@@ -124,6 +133,52 @@ def save_full_page_screenshot(filename: str):
     print(f"Saving screenshot to {filename}")
     driver.save_screenshot(filename)
 
+
+def send_email(
+    sender_email: str,
+    sender_password: str,
+    receiver_email: str,
+    subject: str,
+    body: str,
+    attachments: List,
+):
+    """Send emails via gmail bot
+
+    Args:
+        sender_email (str): email address of bot
+        sender_password (str): password of bot
+        receiver_email (str): email address of receiver
+        subject (str): email subject
+        body (str): email body
+        attachments (list): attachment files
+    """
+    # Create a multipart message
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = subject
+
+    # Add body to email
+    message.attach(MIMEText(body, "plain"))
+
+    # Add attachments
+    for attachment in attachments:
+        filename = os.path.basename(attachment)
+        if filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+            with open(attachment, "rb") as f:
+                img = MIMEImage(f.read(), name=filename)
+                message.attach(img)
+        else:
+            with open(attachment, "rb") as f:
+                part = MIMEApplication(f.read(), Name=filename)
+                part["Content-Disposition"] = f'attachment; filename="{filename}"'
+                message.attach(part)
+
+    # Create SMTP session
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(message)
 
 # Set up Firefox options
 firefox_options = Options()
@@ -150,13 +205,30 @@ find_and_interact("postcode", action="textbox", query="3039RL")
 find_and_interact("postcode_input")
 find_and_interact("quantity_input")
 
-check_for_no_bookings()
-
-find_and_interact("options")
-save_full_page_screenshot("options.png")
-get_date_time_text()
-find_and_interact("options_input")
-find_and_interact("calendar")
-save_full_page_screenshot("calendar.png")
+if check_for_bookings():
+    find_and_interact("options")
+    save_full_page_screenshot("options.png")
+    get_date_time_text()
+    find_and_interact("options_input")
+    find_and_interact("calendar")
+    save_full_page_screenshot("calendar.png")
 
 driver.quit()
+
+# Usage
+env_path = Path('./emailpass.env')
+load_dotenv(dotenv_path=env_path)
+bot_email = f"{os.environ.get('EMAIL_SENDER')}@gmail.com"
+bot_pass = os.environ.get("EMAIL_APP_PASS")
+receiver = f"{os.environ.get('EMAIL_RECEIVER')}@gmail.com"
+
+SUBJECT = "Latest Rotterdam Appointment Times"
+date_time = open("date_time.txt", "r", encoding="utf-8").read()
+email_body = f"Next appointment {date_time}"
+if "not currently available" in date_time:
+    email_attachments = []
+else:
+    email_attachments = ["calendar.png", "options.png"]
+
+print(f"Sending email from {bot_email} to {receiver}")
+send_email(bot_email, bot_pass, receiver, SUBJECT, email_body, email_attachments)
