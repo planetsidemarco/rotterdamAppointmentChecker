@@ -4,16 +4,17 @@ Marco Tyler-Rodrigue
 Selenium webscraper for checking rotterdam municipality appointment times
 """
 
+import os
 import time
 import smtplib
+from datetime import datetime
+from pathlib import Path
+from typing import List
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.mime.application import MIMEApplication
-import os
-from pathlib import Path
 from dotenv import load_dotenv
-from typing import List
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.firefox.options import Options
@@ -93,20 +94,22 @@ def get_date_time_text():
         with open("date_time.txt", "w", encoding="utf-8") as file:
             # Write the string to the file
             file.write(f"{translated}\n")
+            file.write(f"\n{BASE_URL}/{APPOINTMENT_ENDPOINT}\n")
     except ValueError as e:
         print(e)
 
 
 def no_bookings_text():
     """Creates text file stating no bookings available"""
-    print("Saving no bookings available to date_time.txt")
+    print("Saving output to date_time.txt")
     with open("date_time.txt", "w", encoding="utf-8") as file:
         # Write the string to the file
-        file.write("not currently available :(\n")
+        file.write("not currently available\n")
+        file.write(f"\n{BASE_URL}/{APPOINTMENT_ENDPOINT}\n")
 
 
 def check_for_bookings() -> bool:
-    """Text"""
+    """Helper function to check if no booking text exists on page"""
     bookings = True
     time.sleep(5)
     no_booking_text = "Het spijt ons."
@@ -134,32 +137,34 @@ def save_full_page_screenshot(filename: str):
     driver.save_screenshot(filename)
 
 
-def send_email(
-    sender_email: str,
-    sender_password: str,
-    receiver_email: str,
-    subject: str,
-    body: str,
-    attachments: List,
-):
-    """Send emails via gmail bot
+def send_email():
+    """Send emails via gmail bot"""
+    # Load environment secrets
+    env_path = Path("./emailpass.env")
+    load_dotenv(dotenv_path=env_path)
+    bot_email = f"{os.environ.get('EMAIL_SENDER')}@gmail.com"
+    bot_pass = os.environ.get("EMAIL_APP_PASS")
+    receiver_email = f"{os.environ.get('EMAIL_RECEIVER')}@gmail.com"
 
-    Args:
-        sender_email (str): email address of bot
-        sender_password (str): password of bot
-        receiver_email (str): email address of receiver
-        subject (str): email subject
-        body (str): email body
-        attachments (list): attachment files
-    """
-    # Create a multipart message
+    with open("date_time.txt", "r", encoding="utf-8") as file:
+        appointment_times = file.read()
+
+    if "not currently available" in appointment_times:
+        attachments = []
+    else:
+        attachments = ["calendar.png", "options.png"]
+
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    print(f"Sending email to {receiver_email} at {current_datetime}")
+
     message = MIMEMultipart()
-    message["From"] = sender_email
+    message["From"] = bot_email
     message["To"] = receiver_email
-    message["Subject"] = subject
+    message["Subject"] = "Rotterdam Municipality Appointment Times"
 
     # Add body to email
-    message.attach(MIMEText(body, "plain"))
+    message.attach(MIMEText(f"Next appointment {appointment_times}", "plain"))
 
     # Add attachments
     for attachment in attachments:
@@ -177,8 +182,9 @@ def send_email(
     # Create SMTP session
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
-        server.login(sender_email, sender_password)
+        server.login(bot_email, bot_pass)
         server.send_message(message)
+
 
 # Set up Firefox options
 firefox_options = Options()
@@ -187,6 +193,9 @@ firefox_options.add_argument("--headless")
 # Specify the path to Geckodriver
 GECKODRIVER_PATH = "/usr/local/bin/geckodriver"
 BASE_URL = "https://www.rotterdam.nl"
+APPOINTMENT_ENDPOINT = (
+    "eerste-inschrijving-in-nederland/start-eerste-inschrijving-in-nederland"
+)
 
 # Set up Firefox service
 firefox_service = FirefoxService(executable_path=GECKODRIVER_PATH)
@@ -194,9 +203,10 @@ firefox_service = FirefoxService(executable_path=GECKODRIVER_PATH)
 # Initialize the Firefox driver with the specified service
 driver = webdriver.Firefox(service=firefox_service, options=firefox_options)
 driver.maximize_window()
-driver.get(
-    f"{BASE_URL}/eerste-inschrijving-in-nederland/start-eerste-inschrijving-in-nederland"
-)
+driver.get(f"{BASE_URL}/{APPOINTMENT_ENDPOINT}")
+
+check_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+print(f"Checking Rotterdam website appointments at {check_datetime}")
 
 find_and_interact("appointment")
 find_and_interact("subject")
@@ -215,20 +225,4 @@ if check_for_bookings():
 
 driver.quit()
 
-# Usage
-env_path = Path('./emailpass.env')
-load_dotenv(dotenv_path=env_path)
-bot_email = f"{os.environ.get('EMAIL_SENDER')}@gmail.com"
-bot_pass = os.environ.get("EMAIL_APP_PASS")
-receiver = f"{os.environ.get('EMAIL_RECEIVER')}@gmail.com"
-
-SUBJECT = "Latest Rotterdam Appointment Times"
-date_time = open("date_time.txt", "r", encoding="utf-8").read()
-email_body = f"Next appointment {date_time}"
-if "not currently available" in date_time:
-    email_attachments = []
-else:
-    email_attachments = ["calendar.png", "options.png"]
-
-print(f"Sending email from {bot_email} to {receiver}")
-send_email(bot_email, bot_pass, receiver, SUBJECT, email_body, email_attachments)
+send_email()
